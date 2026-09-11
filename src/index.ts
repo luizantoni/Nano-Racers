@@ -280,7 +280,7 @@ function update(dt:number){
    if(room.driver.finished)runParade(1/60)
    else {step(room.driver,input,room.garage,1/60,room.isRacing()?room.round.laps:0);updateTrackItems()}
    if(room.driver.boost>was){const own=karts.get(room.id);if(own)AudioSource.createOrReplace(own.entity,{audioClipUrl:'assets/Audio/boost.wav',playing:true,volume:.35})}
-   if(room.isRacing())for(const p of room.peers.values())if(p.id!==room.id&&room.round.roster.includes(p.id)&&!p.finished)bump(room.driver,p,1/60)
+   if(room.isRacing())for(const p of room.peers.values())if(p.id!==room.id&&p.seat>=0&&room.round.roster.includes(p.id)&&!p.finished)bump(room.driver,p,1/60)
   }
   accumulator-=1/60
  }
@@ -392,6 +392,7 @@ function runParade(dt:number){
 }
 function displayPoseForLocal(){return room.driver.finished?pose(paradeS,room.driver.lane):pose(room.driver.s,room.driver.lane)}
 function cinemaHeading(){return room.driver.heading+Math.sin(cinemaPhase*.58)*.42}
+
 
 
 

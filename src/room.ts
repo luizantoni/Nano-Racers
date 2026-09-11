@@ -20,14 +20,14 @@ export class Room {
   if(data.kind==='round'&&this.round.solo&&this.round.phase!=='lobby'&&this.round.phase!=='results')return
   if(data.kind==='round'&&data.host===this.leader()&&data.round&&['lobby','intro','countdown','race','results'].includes(data.round.phase)&&data.round.laps===RACE_LAPS&&Array.isArray(data.round.roster)&&data.round.roster.length<=20){this.round={...data.round,solo:false}}
  }
- leader(){return [...this.peers.keys()].sort()[0]||this.id}
+ leader(){const seated=[...this.peers.values()].filter(p=>p.seat>=0).map(p=>p.id).sort();return seated[0]||[...this.peers.keys()].sort()[0]||this.id}
  seated(){return this.seat>=0}
  readyCount(){let n=0;for(const peer of this.peers.values())if(peer.ready&&peer.seat>=0)n++;return n}
  join(seat?:number){if(this.isRacing())return;const occupied=new Set([...this.peers.values()].filter(p=>p.id!==this.id).map(p=>p.seat));const target=seat??Array.from({length:20},(_,i)=>i).find(n=>!occupied.has(n));if(target===undefined||occupied.has(target)){this.message='That seat is occupied.';return}this.seat=target;this.me.seat=target;if(!this.driver.elapsed)this.driver=freshDriver(RACE_START,0);this.spectating=false;this.message='Practice on the ghost circuit. Ready when you are.';this.broadcast()}
- leave(){this.seat=-1;this.me.seat=-1;this.me.ready=false;this.spectating=false;this.broadcast()}
+ leave(){this.seat=-1;this.me.seat=-1;this.me.ready=false;this.spectating=false;this.send({kind:'leave',id:this.id});this.broadcast()}
  ready(){if(!this.seated()){this.message='Use the JOIN RACE sign first.';return}if(this.round.phase!=='lobby'&&this.round.phase!=='results')return;this.me.ready=!this.me.ready;this.message=this.me.ready?'Ready for the next race.':'Practice until you are ready.';this.broadcast()}
  solo(){if(!this.seated())this.join();if(!this.seated())return;if(this.round.phase!=='lobby'&&this.round.phase!=='results')return;const now=Date.now();this.me.ready=false;this.spectating=false;this.result='';this.round={id:`solo-${now}-${this.id}`,phase:'intro',until:now+6000,laps:RACE_LAPS,roster:[this.id],finished:[],started:0,winnerAt:0,solo:true};this.message='SOLO RACE';this.broadcast()}
- isRacing(){return this.round.phase==='race'&&this.round.roster.includes(this.id)&&!this.driver.finished}
+ isRacing(){return this.seated()&&this.round.phase==='race'&&this.round.roster.includes(this.id)&&!this.driver.finished}
  isGrid(){return (this.round.phase==='intro'||this.round.phase==='countdown')&&this.round.roster.includes(this.id)}
  broadcast(){Object.assign(this.me,{seat:this.seat,color:this.garage.color,metalColor:this.garage.metalColor,tireStyle:this.garage.tireStyle,s:this.driver.s,lane:this.driver.lane,speed:this.driver.speed,heading:this.driver.heading,driftAngle:this.driver.driftAngle,tier:this.driver.tier,boost:this.driver.boost,finished:this.driver.finished,best:this.driver.best,elapsed:this.driver.elapsed,seen:Date.now()});this.send({kind:'peer',peer:{...this.me}})}
  update(now=Date.now()){
@@ -62,5 +62,6 @@ export class Room {
   if(r.phase==='results'&&now>=r.until){r.phase='lobby';r.roster=[];r.finished=[];r.solo=false}
  }
 }
+
 
 

@@ -1,5 +1,8 @@
+allowBuilds:
+  '@dcl/sdk-commands': true
+  esbuild: true
+  protobufjs: true
 onlyBuiltDependencies:
   - '@dcl/sdk-commands'
   - esbuild
   - protobufjs
-

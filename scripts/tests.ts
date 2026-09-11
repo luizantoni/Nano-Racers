@@ -128,10 +128,15 @@ test('Joining supplies a stationary track pose before the first driving tick',()
  assert.ok(r.seated());assert.equal(r.driver.s,RACE_START);assert.equal(r.driver.speed,0);assert.equal(r.driver.elapsed,0)
  const f=pose(r.driver.s,r.driver.lane);assert.ok(Object.values(f.p).every(Number.isFinite));assert.ok(f.p.y>1)
 })
+test('Leaving mid-race does not freeze racers and allows rejoin practice',()=>{
+ let clock=3_500_000;const realNow=Date.now;Date.now=()=>clock
+ try{const rooms:Room[]=[];const a=new Room('a',p=>rooms.forEach(o=>{if(o.id!=='a')o.receive(structuredClone(p))}),freshGarage()),b=new Room('b',p=>rooms.forEach(o=>{if(o.id!=='b')o.receive(structuredClone(p))}),freshGarage());rooms.push(a,b);const tick=(n:number)=>{for(let i=0;i<n;i++){clock+=200;rooms.forEach(r=>r.update(clock))}}
+ tick(2);a.join(0);b.join(1);a.ready();b.ready();tick(65);assert.equal(a.round.phase,'race');assert.equal(b.round.phase,'race')
+ b.leave();tick(2);assert.equal(a.peers.get('b')?.seat,-1);assert.equal(a.leader(),'a');assert.equal(a.isRacing(),true)
+ const before=a.driver.s;for(let i=0;i<60;i++){clock+=100;a.update(clock)}assert.ok(a.driver.s>=before,'remaining racer should keep updating')
+ b.join(1);tick(2);assert.equal(b.seated(),true);assert.equal(b.isRacing(),true)
+ }finally{Date.now=realNow}
+})
 console.log(`${checks} verification groups passed.`)
-
-
-
-
 
 
