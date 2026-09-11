@@ -1,6 +1,7 @@
-import {engine,Transform,GltfContainer,Animator,MainCamera,VirtualCamera,InputAction,inputSystem,pointerEventsSystem,MeshRenderer,MeshCollider,Material,AudioSource,Entity,Composite,getCompositeProvider,TouchScreenControls,ColliderLayer,Billboard,BillboardMode,TextShape,TextAlignMode,AssetLoad,VisibilityComponent,MaterialTransparencyMode,ParticleSystem,PBParticleSystem_BlendMode,PBParticleSystem_PlaybackState,PBParticleSystem_SimulationSpace,Schemas,GltfNodeModifiers} from '@dcl/sdk/ecs'
+import {engine,Transform,GltfContainer,Animator,MainCamera,VirtualCamera,InputAction,inputSystem,pointerEventsSystem,MeshRenderer,MeshCollider,Material,AudioSource,Entity,Composite,getCompositeProvider,TouchScreenControls,ColliderLayer,Billboard,BillboardMode,TextShape,TextAlignMode,AssetLoad,VisibilityComponent,MaterialTransparencyMode,ParticleSystem,PBParticleSystem_BlendMode,PBParticleSystem_PlaybackState,PBParticleSystem_SimulationSpace,Schemas,GltfNodeModifiers,InputModifier,PointerEventType} from '@dcl/sdk/ecs'
 import {syncEntity,isStateSyncronized} from '@dcl/sdk/network'
-import {Color4,Quaternion} from '@dcl/sdk/math'
+import {Color4,Quaternion,Vector3} from '@dcl/sdk/math'
+import {movePlayerTo} from '~system/RestrictedActions'
 import {MessageBus} from '@dcl/sdk/message-bus'
 import {getPlayer} from '@dcl/sdk/src/players'
 import {isMobile} from '@dcl/sdk/platform'
@@ -29,6 +30,15 @@ const metalgridPaths=['Cube.025']
 const colorMaterial=(color:number,metallic=.25,roughness=.32)=>{const c=Color4.fromHexString(PALETTE[Math.floor(clamp(color,0,PALETTE.length-1))]);return {material:{$case:'pbr' as const,pbr:{albedoColor:c,metallic,roughness,castShadows:false}}}}
 function applyKartMaterials(entity:Entity,paint:number,metal:number){GltfNodeModifiers.createOrReplace(entity,{modifiers:[...carpaintPaths.map(path=>({path,material:colorMaterial(paint,.2,.28)})),...metalgridPaths.map(path=>({path,material:colorMaterial(metal,.55,.2)}))]})}
 let confettiEmitters:Entity[]=[],lastCeremonyRound='',lastFinishBurst='',lastFinalLapBurst='',lastCountdownCue=-1,musicRound='',paradeS=RACE_START,cinemaPhase=0,driveInputReadyAt=0,reverseArmed=true
+const desktopHeld={forward:false,left:false,right:false,back:false,jump:false}
+function resetDesktopControls(){desktopHeld.forward=false;desktopHeld.left=false;desktopHeld.right=false;desktopHeld.back=false;desktopHeld.jump=false}
+function latchDesktopControls(){
+ const latch=(action:InputAction,key:keyof typeof desktopHeld)=>{
+  if(inputSystem.getInputCommand(action,PointerEventType.PET_DOWN))desktopHeld[key]=true
+  if(inputSystem.getInputCommand(action,PointerEventType.PET_UP))desktopHeld[key]=false
+ }
+ latch(InputAction.IA_FORWARD,'forward');latch(InputAction.IA_LEFT,'left');latch(InputAction.IA_RIGHT,'right');latch(InputAction.IA_BACKWARD,'back');latch(InputAction.IA_JUMP,'jump')
+}
 const garageKey='mini-rc-garage-v1'
 const INTRO_MS=6000
 export async function main(){
@@ -116,9 +126,13 @@ function readSyncedRound(){
 }
 function enterRace(seat?:number){
  room.join(seat)
- if(room.seated()){mobileButtons.gas=false;mobileButtons.reverse=false;reverseArmed=false;driveInputReadyAt=Date.now()+700;paradeS=room.driver.s;activateDrivingCamera();room.message='Seat locked. Practice until the next race.'}
+ if(room.seated()){mobileButtons.gas=false;mobileButtons.reverse=false;resetDesktopControls();reverseArmed=false;driveInputReadyAt=Date.now()+700;paradeS=room.driver.s;parkAvatarForRace();activateDrivingCamera();room.message='Seat locked. Practice until the next race.'}
+}
+function parkAvatarForRace(){
+ movePlayerTo({newRelativePosition:Vector3.create(16,.05,16),cameraTarget:Vector3.create(16,1.3,18),avatarTarget:Vector3.create(16,1.3,18)}).catch(()=>{})
 }
 function activateDrivingCamera(){
+ InputModifier.createOrReplace(engine.PlayerEntity,{mode:InputModifier.Mode.Standard({disableAll:true})})
  const d=room.driver,f=pose(d.s,d.lane),own=kart(room.id,room.garage.color,room.me.userId,room.garage.tireStyle,room.garage.metalColor)
  Transform.createOrReplace(own.entity,{position:f.p,rotation:orientation(f,d.heading),scale:v(.096,.096,.096)})
  if(own.motorAudio){const kmh=Math.abs(d.speed)*12,pitch=clamp(1+(kmh-20)/50,.65,2.15),volume=room.seat>=0?clamp(.28+d.throttle*.38+kmh/140,.18,1):0;AudioSource.createOrReplace(own.motorAudio,{audioClipUrl:'assets/Audio/motorloop.mp3',playing:true,loop:true,volume:Math.max(volume,.55),pitch,global:true,currentTime:0})}
@@ -290,14 +304,16 @@ function update(dt:number){
  setAvatarBounds(room.seated())
  readSyncedPeers();readSyncedRound();room.update();if(room.leader()===room.id)writeSyncedRound();const nextLayout=room.round.id||`practice-${room.id}`;if(nextLayout!==layoutKey)randomizeTrackItems(nextLayout);updateGantryLights();updateCeremony(dt)
  if(workshopKart){workshopSpin+=dt*28;Transform.getMutable(workshopKart).rotation=Quaternion.fromEulerDegrees(0,35+workshopSpin,0);if(workshopMaterialRefresh>0){workshopMaterialRefresh--;applyKartMaterials(workshopKart,room.garage.color,room.garage.metalColor)}}
- if(activeSeat!==room.seat){activeSeat=room.seat;if(activeSeat>=0){mobileButtons.gas=false;mobileButtons.reverse=false;reverseArmed=false;driveInputReadyAt=Date.now()+700;activateDrivingCamera()}else{MainCamera.createOrReplace(engine.CameraEntity,{virtualCameraEntity:undefined});sparks.forEach(e=>engine.removeEntity(e));sparks=[]}}
+ if(activeSeat!==room.seat){activeSeat=room.seat;if(activeSeat>=0){mobileButtons.gas=false;mobileButtons.reverse=false;resetDesktopControls();reverseArmed=false;driveInputReadyAt=Date.now()+700;parkAvatarForRace();activateDrivingCamera()}else{InputModifier.deleteFrom(engine.PlayerEntity);resetDesktopControls();MainCamera.createOrReplace(engine.CameraEntity,{virtualCameraEntity:undefined});sparks.forEach(e=>engine.removeEntity(e));sparks=[]}}
  if(activeSeat!==mobileSeat){mobileSeat=activeSeat;if(isMobile()&&activeSeat>=0){TouchScreenControls.hideAll();TouchScreenControls.showJoystick();TouchScreenControls.hideCrosshair()}else{mobileButtons.gas=false;mobileButtons.reverse=false;if(isMobile())TouchScreenControls.deleteFrom(engine.RootEntity)}}
+ latchDesktopControls()
  const pressed=(key:InputAction)=>inputSystem.isPressed(key)
- const steer=((pressed(InputAction.IA_RIGHT)?1:0)-(pressed(InputAction.IA_LEFT)?1:0))*preferences.steering
- const rawReverse=isMobile()?mobileButtons.reverse:pressed(InputAction.IA_BACKWARD)
+ const desktopForward=desktopHeld.forward||pressed(InputAction.IA_FORWARD),desktopLeft=desktopHeld.left||pressed(InputAction.IA_LEFT),desktopRight=desktopHeld.right||pressed(InputAction.IA_RIGHT),desktopBack=desktopHeld.back||pressed(InputAction.IA_BACKWARD),desktopJump=desktopHeld.jump||pressed(InputAction.IA_JUMP)
+ const steer=((desktopRight?1:0)-(desktopLeft?1:0))*preferences.steering
+ const rawReverse=isMobile()?mobileButtons.reverse:desktopBack
   if(!rawReverse)reverseArmed=true
   const reverse=Date.now()>=driveInputReadyAt&&reverseArmed&&rawReverse
- const input={throttle:isMobile()?(mobileButtons.gas?1:0):(pressed(InputAction.IA_FORWARD)?1:0),brake:false,reverse,steer,drift:pressed(InputAction.IA_JUMP)}
+ const input={throttle:isMobile()?(mobileButtons.gas?1:0):(desktopForward?1:0),brake:false,reverse,steer,drift:desktopJump}
  accumulator=Math.min(.15,accumulator+dt)
  while(accumulator>=1/60){
   if(room.seated()&&!room.isGrid()&&!room.spectating){
