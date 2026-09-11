@@ -1,0 +1,31 @@
+# Design decisions
+
+- 2026-09-07 · Owner: miniature drift/kart game on a 2×2 scene; track winds upward to increase racing length within that footprint.
+- 2026-09-07 · Owner: players sit at table slots; camera switches to the RC mini kart they control.
+- 2026-09-07 · Owner: goal is the final scene, with AAA quality and low-poly aesthetics. Specific quality acceptance criteria are not yet decided.
+- 2026-09-07 · Owner selected accessible arcade drifting over realistic RC handling: easy steering, controlled slides, and a small boost for a well-timed drift. Agent wording accepted through selection between named alternatives.
+- 2026-09-07 · Owner: finishing first is the main competition objective.
+- 2026-09-07 · Owner selected a continuous climb-and-descend circuit: the track climbs through intertwined turns and descends back to the starting level.
+- 2026-09-07 · Owner raised the desired race capacity to up to 20 racers. This is a design target; capacity has not been tested.
+- 2026-09-07 · Owner selected light kart-to-kart bumps over full collisions or ghost karts, accepting contact without hard spins or pushing opponents off the track.
+- 2026-09-07 · Owner: races last three or more laps. How the lap count is set remains undecided.
+- 2026-09-07 · Owner selected player voting for lap count over host selection. Accepted proposal: vote before the race for three, five, or seven laps; three is the default. This resolves the earlier lap-setting question.
+- 2026-09-07 · Owner selected automatic starts with ready players and retained the lap vote. Accepted proposal includes practice driving while waiting and a short countdown once at least two players are ready; no host is required.
+- 2026-09-07 · Owner: late arrivals can choose practice driving or watching the current race while waiting to join the next race.
+- 2026-09-07 · Owner selected ghost practice karts on the race circuit over a separate practice area. Accepted proposal: practice karts are visually distinct and do not collide with racers.
+- 2026-09-07 · Owner: players must ready up again for each new race; participation does not automatically carry over.
+- 2026-09-07 · Owner confirmed the complete race-loop read-back. Agent proposed a placement/best-lap results screen followed by return to practice; bare yes recorded as [agent-decided] under the skill's acceptance rule.
+- 2026-09-07 · Owner supplied download (7).png as the visual reference in response to the setting question. Recorded its toy-track tower, stacked curves, geometric supports, neon trim, and bright palette. Vertical loops and steep stunt ramps remain unconfirmed mechanics.
+- 2026-09-07 · Owner selected driveable vertical loops over slopes and banked turns only. Accepted proposal includes assisted steering through loops. Camera behavior remains undecided.
+- 2026-09-07 · Owner selected a chase camera that rotates upside down with the kart through vertical loops, instead of switching to a cinematic side view.
+- 2026-09-07 · Owner selected automatic grip through loops: karts remain attached even at low speed, without falling or resetting because of slow entry.
+- 2026-09-07 · Owner selected button-controlled drifting over automatic drifting. Accepted proposal: hold the drift button while steering, then release for a boost.
+- 2026-09-07 · Owner selected three drift-boost charge levels, rewarding longer drifts with stronger boosts. Accepted presentation proposal: visible sparks change color at charge thresholds; releasing before the first threshold gives no boost. Exact thresholds and boost strengths remain undecided.
+- 2026-09-07 · Owner: driving only for now. Weapons and item pickups are excluded from the first version; later inclusion is not decided. Drift-earned boosts remain in scope.
+- 2026-09-07 · Owner chose different kart speed and handling characteristics and requested customization. Specific kart types, customization options, and whether customization changes performance remain undecided.
+- 2026-09-07 · Owner: customization parts also change performance. Part categories, stat effects, and acquisition remain undecided; the proposed three kart types have not been confirmed.
+- 2026-09-07 · Owner selected progressively stronger upgrades earned through racing over parts designed primarily around performance trade-offs. Reward rules and upgrade limits remain undecided.
+- 2026-09-07 · Owner selected completion rewards plus placement bonuses over wins-only rewards. Accepted proposal: every completed race awards upgrade currency, with an additional finishing-position bonus. Exact amounts remain undecided.
+- 2026-09-07 · Owner: a fixed performance cap with a very long progression that plateaus; incremental upgrade gains tend toward zero. Exact curve, maximum performance advantage, and whether upgrade levels themselves end remain undecided.
+- 2026-09-07 · Owner selected a maximum top-speed upgrade gain of 10% over the kart's starting top speed. This caps top speed, not overall race advantage; caps for other performance stats remain undecided.
+- 2026-09-07 · Owner accepted motor/top speed, tires/handling, and battery/drift-boost duration as customizable performance parts, and requested building the game in this session.

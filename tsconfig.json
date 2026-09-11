@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "strict": true,
+    "baseUrl": ".",
+    "paths": {
+      "@dcl/asset-packs/*": [
+        "node_modules/@dcl/inspector/node_modules/@dcl/asset-packs/*"
+      ]
+    },
+    "skipLibCheck": true
+  },
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "assets/**/*.ts",
+    "assets/**/*.tsx"
+  ],
+  "extends": "@dcl/sdk/types/tsconfig.ecs7.json"
+}

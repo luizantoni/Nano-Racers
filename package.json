@@ -1,0 +1,33 @@
+{
+  "name": "mini-rc-drift-club",
+  "version": "1.0.0",
+  "description": "SDK7 Template scene",
+  "scripts": {
+    "start": "sdk-commands start",
+    "deploy": "sdk-commands deploy",
+    "build": "sdk-commands build",
+    "upgrade-sdk": "npm install --save-dev @dcl/sdk@latest",
+    "upgrade-sdk:next": "npm install --save-dev @dcl/sdk@next",
+    "assets": "node scripts/generate-assets.mjs",
+    "preview": "node scripts/serve.mjs",
+    "build:preview": "node scripts/build-preview.mjs",
+    "test": "node --experimental-strip-types scripts/test.mjs"
+  },
+  "devDependencies": {
+    "@dcl/js-runtime": "7.27.0",
+    "@dcl/sdk": "7.27.0",
+    "@dcl/sdk-commands": "7.27.0",
+    "esbuild": "0.25.10",
+    "three": "0.180.0"
+  },
+  "engines": {
+    "node": ">=16.0.0",
+    "npm": ">=6.0.0"
+  },
+  "prettier": {
+    "semi": false,
+    "singleQuote": true,
+    "printWidth": 120,
+    "trailingComma": "none"
+  }
+}
