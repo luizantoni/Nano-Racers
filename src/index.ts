@@ -29,7 +29,7 @@ const carpaintPaths=['Cube','Cube.005','Cube.006','Cube.007','Cube.008','Cube.00
 const metalgridPaths=['Cube.025']
 const colorMaterial=(color:number,metallic=.25,roughness=.32)=>{const c=Color4.fromHexString(PALETTE[Math.floor(clamp(color,0,PALETTE.length-1))]);return {material:{$case:'pbr' as const,pbr:{albedoColor:c,metallic,roughness,castShadows:false}}}}
 function applyKartMaterials(entity:Entity,paint:number,metal:number){GltfNodeModifiers.createOrReplace(entity,{modifiers:[...carpaintPaths.map(path=>({path,material:colorMaterial(paint,.2,.28)})),...metalgridPaths.map(path=>({path,material:colorMaterial(metal,.55,.2)}))]})}
-let confettiEmitters:Entity[]=[],lastCeremonyRound='',lastFinishBurst='',lastFinalLapBurst='',lastCountdownCue=-1,musicRound='',paradeS=RACE_START,cinemaPhase=0,driveInputReadyAt=0,reverseArmed=true
+let confettiEmitters:Entity[]=[],lastCeremonyRound='',lastFinishBurst='',lastFinalLapBurst='',lastCountdownCue=-1,musicRound='',paradeS=RACE_START,cinemaPhase=0,driveInputReadyAt=0,reverseArmed=true,lastAvatarParkAt=0
 const desktopHeld={forward:false,left:false,right:false,back:false,jump:false}
 function resetDesktopControls(){desktopHeld.forward=false;desktopHeld.left=false;desktopHeld.right=false;desktopHeld.back=false;desktopHeld.jump=false}
 function latchDesktopControls(){
@@ -126,13 +126,17 @@ function readSyncedRound(){
 }
 function enterRace(seat?:number){
  room.join(seat)
- if(room.seated()){mobileButtons.gas=false;mobileButtons.reverse=false;resetDesktopControls();reverseArmed=false;driveInputReadyAt=Date.now()+700;paradeS=room.driver.s;parkAvatarForRace();activateDrivingCamera();room.message='Seat locked. Practice until the next race.'}
+ if(room.seated()){mobileButtons.gas=false;mobileButtons.reverse=false;resetDesktopControls();reverseArmed=false;driveInputReadyAt=Date.now()+700;paradeS=room.driver.s;lockAvatarForRace(true);parkAvatarForRace(true);activateDrivingCamera();room.message='Seat locked. Practice until the next race.'}
 }
-function parkAvatarForRace(){
+function lockAvatarForRace(active:boolean){
+ if(active)InputModifier.createOrReplace(engine.PlayerEntity,{mode:InputModifier.Mode.Standard({disableAll:true})})
+ else InputModifier.deleteFrom(engine.PlayerEntity)
+}
+function parkAvatarForRace(force=false){
+ const now=Date.now();if(!force&&now-lastAvatarParkAt<1000)return;lastAvatarParkAt=now
  movePlayerTo({newRelativePosition:Vector3.create(16,.05,16),cameraTarget:Vector3.create(16,1.3,18),avatarTarget:Vector3.create(16,1.3,18)}).catch(()=>{})
 }
 function activateDrivingCamera(){
- InputModifier.createOrReplace(engine.PlayerEntity,{mode:InputModifier.Mode.Standard({disableAll:true})})
  const d=room.driver,f=pose(d.s,d.lane),own=kart(room.id,room.garage.color,room.me.userId,room.garage.tireStyle,room.garage.metalColor)
  Transform.createOrReplace(own.entity,{position:f.p,rotation:orientation(f,d.heading),scale:v(.096,.096,.096)})
  if(own.motorAudio){const kmh=Math.abs(d.speed)*12,pitch=clamp(1+(kmh-20)/50,.65,2.15),volume=room.seat>=0?clamp(.28+d.throttle*.38+kmh/140,.18,1):0;AudioSource.createOrReplace(own.motorAudio,{audioClipUrl:'assets/Audio/motorloop.mp3',playing:true,loop:true,volume:Math.max(volume,.55),pitch,global:true,currentTime:0})}
@@ -304,7 +308,8 @@ function update(dt:number){
  setAvatarBounds(room.seated())
  readSyncedPeers();readSyncedRound();room.update();if(room.leader()===room.id)writeSyncedRound();const nextLayout=room.round.id||`practice-${room.id}`;if(nextLayout!==layoutKey)randomizeTrackItems(nextLayout);updateGantryLights();updateCeremony(dt)
  if(workshopKart){workshopSpin+=dt*28;Transform.getMutable(workshopKart).rotation=Quaternion.fromEulerDegrees(0,35+workshopSpin,0);if(workshopMaterialRefresh>0){workshopMaterialRefresh--;applyKartMaterials(workshopKart,room.garage.color,room.garage.metalColor)}}
- if(activeSeat!==room.seat){activeSeat=room.seat;if(activeSeat>=0){mobileButtons.gas=false;mobileButtons.reverse=false;resetDesktopControls();reverseArmed=false;driveInputReadyAt=Date.now()+700;parkAvatarForRace();activateDrivingCamera()}else{InputModifier.deleteFrom(engine.PlayerEntity);resetDesktopControls();MainCamera.createOrReplace(engine.CameraEntity,{virtualCameraEntity:undefined});sparks.forEach(e=>engine.removeEntity(e));sparks=[]}}
+ if(activeSeat!==room.seat){activeSeat=room.seat;if(activeSeat>=0){mobileButtons.gas=false;mobileButtons.reverse=false;resetDesktopControls();reverseArmed=false;driveInputReadyAt=Date.now()+700;lockAvatarForRace(true);parkAvatarForRace(true);activateDrivingCamera()}else{lockAvatarForRace(false);resetDesktopControls();MainCamera.createOrReplace(engine.CameraEntity,{virtualCameraEntity:undefined});sparks.forEach(e=>engine.removeEntity(e));sparks=[]}}
+ if(room.seated()){lockAvatarForRace(true);parkAvatarForRace()}
  if(activeSeat!==mobileSeat){mobileSeat=activeSeat;if(isMobile()&&activeSeat>=0){TouchScreenControls.hideAll();TouchScreenControls.showJoystick();TouchScreenControls.hideCrosshair()}else{mobileButtons.gas=false;mobileButtons.reverse=false;if(isMobile())TouchScreenControls.deleteFrom(engine.RootEntity)}}
  latchDesktopControls()
  const pressed=(key:InputAction)=>inputSystem.isPressed(key)
