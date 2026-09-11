@@ -199,13 +199,20 @@ function buildJoinStation(position:{x:number;y:number;z:number}){
  pointerEventsSystem.onPointerDown({entity:clicker,opts:{button:InputAction.IA_POINTER,hoverText:'Join race',maxDistance:12,showFeedback:true,showHighlight:true}},()=>enterRace())
 }
 function buildAvatarBounds(){
+ const mat=Color4.fromHexString('#00000000')
  const specs=[
   {position:v(-.38,2,16),scale:v(.76,4,34)},
   {position:v(32.38,2,16),scale:v(.76,4,34)},
   {position:v(16,2,-.38),scale:v(34,4,.76)},
   {position:v(16,2,32.38),scale:v(34,4,.76)}
  ]
- for(const spec of specs){const e=engine.addEntity();Transform.create(e,spec);avatarBounds.push(e)}
+ for(const spec of specs){
+  const e=engine.addEntity()
+  Transform.create(e,spec)
+  MeshRenderer.setBox(e)
+  Material.setPbrMaterial(e,{albedoColor:mat,alphaTexture:undefined,transparencyMode:MaterialTransparencyMode.MTM_ALPHA_BLEND,castShadows:false})
+  avatarBounds.push(e)
+ }
  setAvatarBounds(false)
 }
 function setAvatarBounds(active:boolean){
@@ -284,7 +291,7 @@ function update(dt:number){
  readSyncedPeers();readSyncedRound();room.update();if(room.leader()===room.id)writeSyncedRound();const nextLayout=room.round.id||`practice-${room.id}`;if(nextLayout!==layoutKey)randomizeTrackItems(nextLayout);updateGantryLights();updateCeremony(dt)
  if(workshopKart){workshopSpin+=dt*28;Transform.getMutable(workshopKart).rotation=Quaternion.fromEulerDegrees(0,35+workshopSpin,0);if(workshopMaterialRefresh>0){workshopMaterialRefresh--;applyKartMaterials(workshopKart,room.garage.color,room.garage.metalColor)}}
  if(activeSeat!==room.seat){activeSeat=room.seat;if(activeSeat>=0){mobileButtons.gas=false;mobileButtons.reverse=false;reverseArmed=false;driveInputReadyAt=Date.now()+700;activateDrivingCamera()}else{MainCamera.createOrReplace(engine.CameraEntity,{virtualCameraEntity:undefined});sparks.forEach(e=>engine.removeEntity(e));sparks=[]}}
- if(activeSeat!==mobileSeat){mobileSeat=activeSeat;if(activeSeat>=0){TouchScreenControls.hideAll();TouchScreenControls.showJoystick();TouchScreenControls.hideCrosshair()}else{mobileButtons.gas=false;mobileButtons.reverse=false;TouchScreenControls.deleteFrom(engine.RootEntity)}}
+ if(activeSeat!==mobileSeat){mobileSeat=activeSeat;if(isMobile()&&activeSeat>=0){TouchScreenControls.hideAll();TouchScreenControls.showJoystick();TouchScreenControls.hideCrosshair()}else{mobileButtons.gas=false;mobileButtons.reverse=false;if(isMobile())TouchScreenControls.deleteFrom(engine.RootEntity)}}
  const pressed=(key:InputAction)=>inputSystem.isPressed(key)
  const steer=((pressed(InputAction.IA_RIGHT)?1:0)-(pressed(InputAction.IA_LEFT)?1:0))*preferences.steering
  const rawReverse=isMobile()?mobileButtons.reverse:pressed(InputAction.IA_BACKWARD)
