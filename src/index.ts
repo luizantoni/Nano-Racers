@@ -1,4 +1,4 @@
-import {engine,Transform,GltfContainer,Animator,InputModifier,MainCamera,VirtualCamera,InputAction,inputSystem,pointerEventsSystem,MeshRenderer,MeshCollider,Material,AudioSource,Entity,Composite,getCompositeProvider,TouchScreenControls,ColliderLayer,Billboard,BillboardMode,TextShape,TextAlignMode,AssetLoad,VisibilityComponent,MaterialTransparencyMode,ParticleSystem,PBParticleSystem_BlendMode,PBParticleSystem_PlaybackState,PBParticleSystem_SimulationSpace,Schemas,GltfNodeModifiers} from '@dcl/sdk/ecs'
+import {engine,Transform,GltfContainer,Animator,MainCamera,VirtualCamera,InputAction,inputSystem,pointerEventsSystem,MeshRenderer,MeshCollider,Material,AudioSource,Entity,Composite,getCompositeProvider,TouchScreenControls,ColliderLayer,Billboard,BillboardMode,TextShape,TextAlignMode,AssetLoad,VisibilityComponent,MaterialTransparencyMode,ParticleSystem,PBParticleSystem_BlendMode,PBParticleSystem_PlaybackState,PBParticleSystem_SimulationSpace,Schemas,GltfNodeModifiers} from '@dcl/sdk/ecs'
 import {syncEntity,isStateSyncronized} from '@dcl/sdk/network'
 import {Color4,Quaternion} from '@dcl/sdk/math'
 import {MessageBus} from '@dcl/sdk/message-bus'
@@ -124,7 +124,6 @@ function activateDrivingCamera(){
  const forward=add(mul(f.t,Math.cos(cameraHeading)),mul(f.right,Math.sin(cameraHeading)))
  Transform.createOrReplace(cam,{position:add(add(f.p,mul(forward,-.258-.018*cameraSpeed)),mul(f.up,.123)),rotation:Quaternion.multiply(orientation(f,cameraHeading),Quaternion.fromEulerDegrees(13,0,0))})
  VirtualCamera.createOrReplace(cam,{defaultTransition:{transitionMode:VirtualCamera.Transition.Time(0)}})
- InputModifier.createOrReplace(engine.PlayerEntity,{mode:InputModifier.Mode.Standard({disableAll:true})})
  MainCamera.createOrReplace(engine.CameraEntity,{virtualCameraEntity:cam})
  activeSeat=room.seat
 }
@@ -265,7 +264,7 @@ function updateGantryLights(){
 function update(dt:number){
  if(!room)return;readSyncedPeers();readSyncedRound();room.update();if(room.leader()===room.id)writeSyncedRound();const nextLayout=room.round.id||`practice-${room.id}`;if(nextLayout!==layoutKey)randomizeTrackItems(nextLayout);updateGantryLights();updateCeremony(dt)
  if(workshopKart){workshopSpin+=dt*28;Transform.getMutable(workshopKart).rotation=Quaternion.fromEulerDegrees(0,35+workshopSpin,0);if(workshopMaterialRefresh>0){workshopMaterialRefresh--;applyKartMaterials(workshopKart,room.garage.color,room.garage.metalColor)}}
- if(activeSeat!==room.seat){activeSeat=room.seat;if(activeSeat>=0){mobileButtons.gas=false;mobileButtons.reverse=false;reverseArmed=false;driveInputReadyAt=Date.now()+700;activateDrivingCamera()}else{InputModifier.deleteFrom(engine.PlayerEntity);MainCamera.createOrReplace(engine.CameraEntity,{virtualCameraEntity:undefined});sparks.forEach(e=>engine.removeEntity(e));sparks=[]}}
+ if(activeSeat!==room.seat){activeSeat=room.seat;if(activeSeat>=0){mobileButtons.gas=false;mobileButtons.reverse=false;reverseArmed=false;driveInputReadyAt=Date.now()+700;activateDrivingCamera()}else{MainCamera.createOrReplace(engine.CameraEntity,{virtualCameraEntity:undefined});sparks.forEach(e=>engine.removeEntity(e));sparks=[]}}
  if(activeSeat!==mobileSeat){mobileSeat=activeSeat;if(activeSeat>=0){TouchScreenControls.hideAll();TouchScreenControls.showJoystick();TouchScreenControls.hideCrosshair()}else{mobileButtons.gas=false;mobileButtons.reverse=false;TouchScreenControls.deleteFrom(engine.RootEntity)}}
  const pressed=(key:InputAction)=>inputSystem.isPressed(key)
  const steer=((pressed(InputAction.IA_RIGHT)?1:0)-(pressed(InputAction.IA_LEFT)?1:0))*preferences.steering
@@ -392,6 +391,7 @@ function runParade(dt:number){
 }
 function displayPoseForLocal(){return room.driver.finished?pose(paradeS,room.driver.lane):pose(room.driver.s,room.driver.lane)}
 function cinemaHeading(){return room.driver.heading+Math.sin(cinemaPhase*.58)*.42}
+
 
 
 
