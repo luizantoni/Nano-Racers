@@ -11,36 +11,48 @@ function readBoard(){const store=storage();if(!store)return memoryBoard.slice();
 function writeBoard(records:LeaderRecord[]){memoryBoard.length=0;memoryBoard.push(...records.slice(0,20));const store=storage();if(store)try{store.setItem(boardKey,JSON.stringify(memoryBoard))}catch{}}
 export class Room {
  hasRoundFinisher(){return this.round.roster.some(id=>id===this.id?this.driver.finished&&this.driver.s>=TRACK_LENGTH*this.round.laps:!!(this.peers.get(id)?.finished&&this.peers.get(id)!.s>=TRACK_LENGTH*this.round.laps))}
+ activeRoster(){return this.round.roster.filter(id=>this.peers.has(id)&&this.peers.get(id)!.seat>=0)}
  cancelRace(message='Race cancelled. Ready for the next one.'){
+  if(this.round.id)this.cancelledRounds.add(this.round.id)
   this.round.phase='lobby';this.round.roster=[];this.round.finished=[];this.round.started=0;this.round.winnerAt=0;this.round.until=0
   this.spectating=false;this.result=''
   for(const p of this.peers.values())p.ready=false
   this.me.ready=false;this.message=message
  }
+ recoverLobbyIfOrphaned(){
+  if(this.round.solo||this.round.phase==='lobby'||this.round.phase==='results'||this.hasRoundFinisher())return false
+  const active=this.activeRoster()
+  if(active.length<2){this.cancelRace();return true}
+  if(this.seated()&&this.round.roster.includes(this.id)&&!active.includes(this.id)){this.cancelRace();return true}
+  return false
+ }
  peers=new Map<string,Peer>();round:Round={id:'',phase:'lobby',until:0,laps:RACE_LAPS,roster:[],finished:[],started:0,winnerAt:0}
+ cancelledRounds=new Set<string>()
  leaderboard:LeaderRecord[]=readBoard()
  me:Peer;driver=freshDriver();garage:Garage;lastBeat=0;seenRound='';paidRound='';message='Choose a table seat to drive.';spectating=false;result='';seat=-1
  constructor(public id:string,public send:(p:Packet)=>void,g:Garage,public save:()=>void=()=>{}){this.garage=g;this.me={id,userId:id,name:`Racer ${id.slice(-4)}`,seat:-1,ready:false,color:g.color,metalColor:g.metalColor,tireStyle:g.tireStyle,s:0,lane:0,speed:0,heading:0,tier:0,boost:0,finished:false,best:0,elapsed:0,seen:Date.now()};this.peers.set(id,this.me)}
  receive(data:Packet){const now=Date.now();if(!data||typeof data!=='object')return
-  if(data.kind==='peer'){const p=data.peer;if(!p||p.id===this.id||typeof p.id!=='string'||p.id.length>100||!Number.isFinite(p.s)||!Number.isFinite(p.lane)||!Number.isFinite(p.speed))return;if(!this.peers.has(p.id)&&this.peers.size>=40)return;const old=this.peers.get(p.id),name=String(p.name||'Racer').slice(0,24);this.peers.set(p.id,{...p,userId:String(p.userId||p.id).slice(0,100),seat:Math.floor(clamp(p.seat,-1,19)),ready:!!p.ready,color:Math.floor(clamp(p.color,0,5)),metalColor:Math.floor(clamp(Number.isFinite(p.metalColor)?p.metalColor:3,0,5)),tireStyle:Math.floor(clamp(Number.isFinite(p.tireStyle)?p.tireStyle:0,0,2)),lane:clamp(p.lane,-1.1,1.1),speed:clamp(p.speed,-8,24),driftAngle:Number.isFinite(p.driftAngle)?clamp(p.driftAngle!,-.4,.4):0,name,best:Number.isFinite(p.best)?p.best:0,elapsed:Number.isFinite(p.elapsed)?p.elapsed:0,seen:now});if(p.ready&&!old?.ready&&p.seat>=0&&this.round.phase==='lobby')this.message=`${name} READY`}
+  if(data.kind==='peer'){const p=data.peer;if(!p||p.id===this.id||typeof p.id!=='string'||p.id.length>100||!Number.isFinite(p.s)||!Number.isFinite(p.lane)||!Number.isFinite(p.speed))return;if(!this.peers.has(p.id)&&this.peers.size>=40)return;const old=this.peers.get(p.id),name=String(p.name||'Racer').slice(0,24);this.peers.set(p.id,{...p,userId:String(p.userId||p.id).slice(0,100),seat:Math.floor(clamp(p.seat,-1,19)),ready:!!p.ready,color:Math.floor(clamp(p.color,0,5)),metalColor:Math.floor(clamp(Number.isFinite(p.metalColor)?p.metalColor:3,0,5)),tireStyle:Math.floor(clamp(Number.isFinite(p.tireStyle)?p.tireStyle:0,0,2)),lane:clamp(p.lane,-1.1,1.1),speed:clamp(p.speed,-8,24),driftAngle:Number.isFinite(p.driftAngle)?clamp(p.driftAngle!,-.4,.4):0,name,best:Number.isFinite(p.best)?p.best:0,elapsed:Number.isFinite(p.elapsed)?p.elapsed:0,seen:now});if(p.ready&&!old?.ready&&p.seat>=0&&this.round.phase==='lobby')this.message=`${name} READY`;this.recoverLobbyIfOrphaned()}
   if(data.kind==='leave'&&data.id!==this.id){if((this.round.phase==='intro'||this.round.phase==='countdown'||this.round.phase==='race')&&this.round.roster.includes(data.id)&&!this.hasRoundFinisher())this.cancelRace();this.peers.delete(data.id)}
+  if(data.kind==='round'&&data.round?.id&&this.cancelledRounds.has(data.round.id))return
   if(data.kind==='round'&&this.round.solo&&this.round.phase!=='lobby'&&this.round.phase!=='results')return
   if(data.kind==='round'&&data.host===this.leader()&&data.round&&['lobby','intro','countdown','race','results'].includes(data.round.phase)&&data.round.laps===RACE_LAPS&&Array.isArray(data.round.roster)&&data.round.roster.length<=20){this.round={...data.round,solo:false}}
  }
  leader(){const seated=[...this.peers.values()].filter(p=>p.seat>=0).map(p=>p.id).sort();return seated[0]||[...this.peers.keys()].sort()[0]||this.id}
  seated(){return this.seat>=0}
  readyCount(){let n=0;for(const peer of this.peers.values())if(peer.ready&&peer.seat>=0)n++;return n}
- join(seat?:number){if(this.isRacing())return;const occupied=new Set([...this.peers.values()].filter(p=>p.id!==this.id).map(p=>p.seat));const target=seat??Array.from({length:20},(_,i)=>i).find(n=>!occupied.has(n));if(target===undefined||occupied.has(target)){this.message='That seat is occupied.';return}this.seat=target;this.me.seat=target;if(!this.driver.elapsed)this.driver=freshDriver(RACE_START,0);this.spectating=false;this.message='Practice on the ghost circuit. Ready when you are.';this.broadcast()}
+ join(seat?:number){this.recoverLobbyIfOrphaned();if(this.isRacing())return;const myUser=this.me.userId||this.id;for(const [id,p]of this.peers)if(id!==this.id&&p.userId===myUser)this.peers.delete(id);const occupied=new Set([...this.peers.values()].filter(p=>p.id!==this.id&&p.userId!==myUser&&p.seat>=0).map(p=>p.seat));const target=seat??Array.from({length:20},(_,i)=>i).find(n=>!occupied.has(n));if(target===undefined||occupied.has(target)){this.message='That seat is occupied.';return}this.seat=target;this.me.seat=target;if(!this.driver.elapsed)this.driver=freshDriver(RACE_START,0);this.spectating=false;this.message='Practice on the ghost circuit. Ready when you are.';this.broadcast()}
  leave(){const wasInRound=this.round.roster.includes(this.id)&&(this.round.phase==='intro'||this.round.phase==='countdown'||this.round.phase==='race')&&!this.hasRoundFinisher();this.seat=-1;this.me.seat=-1;this.me.ready=false;this.spectating=false;this.send({kind:'leave',id:this.id});if(wasInRound)this.cancelRace();this.broadcast()}
- ready(){if(!this.seated()){this.message='Use the JOIN RACE sign first.';return}if(this.round.phase!=='lobby'&&this.round.phase!=='results')return;this.me.ready=!this.me.ready;this.message=this.me.ready?'Ready for the next race.':'Practice until you are ready.';this.broadcast()}
+ ready(){if(!this.seated()){this.message='Use the JOIN RACE sign first.';return}this.recoverLobbyIfOrphaned();if(this.round.phase!=='lobby'&&this.round.phase!=='results'){this.message='Race in progress. Practice until the next one.';return}this.me.ready=!this.me.ready;this.message=this.me.ready?'Ready for the next race.':'Practice until you are ready.';this.broadcast()}
  solo(){if(!this.seated())this.join();if(!this.seated())return;if(this.round.phase!=='lobby'&&this.round.phase!=='results')return;const now=Date.now();this.me.ready=false;this.spectating=false;this.result='';this.round={id:`solo-${now}-${this.id}`,phase:'intro',until:now+6000,laps:RACE_LAPS,roster:[this.id],finished:[],started:0,winnerAt:0,solo:true};this.message='SOLO RACE';this.broadcast()}
  isRacing(){return this.seated()&&this.round.phase==='race'&&this.round.roster.includes(this.id)&&!this.driver.finished}
  isGrid(){return this.seated()&&(this.round.phase==='intro'||this.round.phase==='countdown')&&this.round.roster.includes(this.id)}
  broadcast(){Object.assign(this.me,{seat:this.seat,color:this.garage.color,metalColor:this.garage.metalColor,tireStyle:this.garage.tireStyle,s:this.driver.s,lane:this.driver.lane,speed:this.driver.speed,heading:this.driver.heading,driftAngle:this.driver.driftAngle,tier:this.driver.tier,boost:this.driver.boost,finished:this.driver.finished,best:this.driver.best,elapsed:this.driver.elapsed,seen:Date.now()});this.send({kind:'peer',peer:{...this.me}})}
  update(now=Date.now()){
-  for(const [id,p]of this.peers)if(id!==this.id&&now-p.seen>6000)this.peers.delete(id)
+  for(const [id,p]of this.peers)if(id!==this.id&&now-p.seen>6000){if((this.round.phase==='intro'||this.round.phase==='countdown'||this.round.phase==='race')&&this.round.roster.includes(id)&&!this.hasRoundFinisher())this.cancelRace('Connection lost. Ready for the next one.');this.peers.delete(id)}
   // Resolve a simultaneous seat claim deterministically.
-  if(this.seat>=0&&[...this.peers.values()].some(p=>p.id<this.id&&p.seat===this.seat)){this.leave();this.message='Seat taken by another racer. Choose another.'}
+  if(this.seat>=0&&[...this.peers.values()].some(p=>p.id<this.id&&p.seat===this.seat&&p.userId!==(this.me.userId||this.id))){this.leave();this.message='Seat taken by another racer. Choose another.'}
+  this.recoverLobbyIfOrphaned()
   if(now-this.lastBeat>100){this.broadcast();this.lastBeat=now;const solo=!!this.round.solo&&this.round.roster.length===1&&this.round.roster[0]===this.id;if(this.leader()===this.id||solo){this.advance(now);if(!solo)this.send({kind:'round',host:this.id,round:{...this.round,solo:false}})}}
   const r=this.round
   if(this.seated()&&(r.phase==='intro'||r.phase==='countdown'||r.phase==='race')&&r.id!==this.seenRound&&r.roster.includes(this.id)){

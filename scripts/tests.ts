@@ -137,9 +137,19 @@ test('Leaving mid-race does not freeze racers and allows rejoin practice',()=>{
  b.join(1);tick(2);assert.equal(a.round.phase,'lobby');assert.equal(b.round.phase,'lobby');assert.equal(b.seated(),true);assert.equal(b.isRacing(),false);a.ready();b.ready();tick(3);assert.equal(a.round.phase,'intro')
  }finally{Date.now=realNow}
 })
+test('Cancelled rounds ignore stale network packets and keep ready usable',()=>{
+ let clock=4_000_000;const realNow=Date.now;Date.now=()=>clock
+ try{const sent:Packet[]=[];const r=new Room('a',p=>sent.push(structuredClone(p)),freshGarage());r.join(0);r.round={id:'stale-round',phase:'race',until:clock+100000,laps:5,roster:['a','b'],finished:[],started:clock,winnerAt:0};r.cancelRace();r.receive({kind:'round',host:r.leader(),round:{id:'stale-round',phase:'race',until:clock+100000,laps:5,roster:['a','b'],finished:[],started:clock,winnerAt:0}});assert.equal(r.round.phase,'lobby');r.ready();assert.equal(r.me.ready,true)
+ }finally{Date.now=realNow}
+})
+
+test('Timeout disconnects cannot leave a one-player frozen race',()=>{
+ let clock=4_250_000;const realNow=Date.now;Date.now=()=>clock
+ try{const r=new Room('a',()=>{},freshGarage());r.join(0);r.receive({kind:'peer',peer:{id:'b',userId:'b',name:'B',seat:1,ready:true,color:0,metalColor:0,tireStyle:0,s:0,lane:0,speed:0,heading:0,tier:0,boost:0,finished:false,best:0,elapsed:0,seen:clock}});r.round={id:'drop-round',phase:'race',until:clock+100000,laps:5,roster:['a','b'],finished:[],started:clock,winnerAt:0};clock+=7000;r.update(clock);assert.equal(r.round.phase,'lobby');assert.equal(r.isRacing(),false);r.ready();assert.equal(r.me.ready,true)
+ }finally{Date.now=realNow}
+})
+
+test('Same avatar reconnect can reclaim a ghost seat',()=>{
+ const r=new Room('new-session',()=>{},freshGarage());r.me.userId='avatar-1';r.receive({kind:'peer',peer:{id:'old-session',userId:'avatar-1',name:'Same',seat:0,ready:false,color:0,metalColor:0,tireStyle:0,s:0,lane:0,speed:0,heading:0,tier:0,boost:0,finished:false,best:0,elapsed:0,seen:Date.now()}});r.join(0);assert.equal(r.seat,0);assert.equal(r.peers.has('old-session'),false)
+})
 console.log(`${checks} verification groups passed.`)
-
-
-
-
-
