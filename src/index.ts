@@ -29,7 +29,7 @@ const carpaintPaths=['Cube','Cube.005','Cube.006','Cube.007','Cube.008','Cube.00
 const metalgridPaths=['Cube.025']
 const colorMaterial=(color:number,metallic=.25,roughness=.32)=>{const c=Color4.fromHexString(PALETTE[Math.floor(clamp(color,0,PALETTE.length-1))]);return {material:{$case:'pbr' as const,pbr:{albedoColor:c,metallic,roughness,castShadows:false}}}}
 function applyKartMaterials(entity:Entity,paint:number,metal:number){GltfNodeModifiers.createOrReplace(entity,{modifiers:[...carpaintPaths.map(path=>({path,material:colorMaterial(paint,.2,.28)})),...metalgridPaths.map(path=>({path,material:colorMaterial(metal,.55,.2)}))]})}
-let confettiEmitters:Entity[]=[],lastCeremonyRound='',lastFinishBurst='',lastFinalLapBurst='',lastCountdownCue=-1,musicRound='',paradeS=RACE_START,cinemaPhase=0,driveInputReadyAt=0,reverseArmed=true,lastAvatarParkAt=0
+let confettiEmitters:Entity[]=[],lastCeremonyRound='',lastFinishBurst='',lastFinalLapBurst='',lastCountdownCue=-1,musicRound='',paradeS=RACE_START,cinemaPhase=0,driveInputReadyAt=0,reverseArmed=true,lastAvatarParkAt=0,avatarParkPosition=Vector3.create(29.5,.08,27)
 const desktopHeld={forward:false,left:false,right:false,back:false,jump:false}
 function resetDesktopControls(){desktopHeld.forward=false;desktopHeld.left=false;desktopHeld.right=false;desktopHeld.back=false;desktopHeld.jump=false}
 function latchDesktopControls(){
@@ -124,7 +124,8 @@ function readSyncedRound(){
  const key=`${r.id}:${r.phase}:${r.until}:${r.finished.join(',')}`;if(key===seenSyncRound)return;seenSyncRound=key
  room.receive({kind:'round',host:r.host,round:{id:r.id,phase:r.phase as typeof room.round.phase,until:r.until,laps:r.laps,roster:[...r.roster],finished:[...r.finished],started:r.started,winnerAt:r.winnerAt,solo:false}})
 }
-function enterRace(seat?:number){
+function enterRace(seat?:number,padPosition?:{x:number;y:number;z:number}){
+ if(padPosition)avatarParkPosition=Vector3.create(padPosition.x,padPosition.y,padPosition.z)
  room.join(seat)
  if(room.seated()){mobileButtons.gas=false;mobileButtons.reverse=false;resetDesktopControls();reverseArmed=false;driveInputReadyAt=Date.now()+700;paradeS=room.driver.s;lockAvatarForRace(true);parkAvatarForRace(true);activateDrivingCamera();room.message='Seat locked. Practice until the next race.'}
 }
@@ -134,7 +135,7 @@ function lockAvatarForRace(active:boolean){
 }
 function parkAvatarForRace(force=false){
  const now=Date.now();if(!force&&now-lastAvatarParkAt<1000)return;lastAvatarParkAt=now
- movePlayerTo({newRelativePosition:Vector3.create(16,.05,16),cameraTarget:Vector3.create(16,1.3,18),avatarTarget:Vector3.create(16,1.3,18)}).catch(()=>{})
+ movePlayerTo({newRelativePosition:Vector3.create(avatarParkPosition.x,avatarParkPosition.y,avatarParkPosition.z),cameraTarget:Vector3.create(avatarParkPosition.x,avatarParkPosition.y+1.25,avatarParkPosition.z+1.4),avatarTarget:Vector3.create(avatarParkPosition.x,avatarParkPosition.y+1.25,avatarParkPosition.z+1.4)}).catch(()=>{})
 }
 function activateDrivingCamera(){
  const d=room.driver,f=pose(d.s,d.lane),own=kart(room.id,room.garage.color,room.me.userId,room.garage.tireStyle,room.garage.metalColor)
@@ -214,7 +215,7 @@ function buildJoinStation(position:{x:number;y:number;z:number}){
  Animator.createOrReplace(pad,{states:[{clip:'Animation',playing:true,loop:true,speed:1,weight:1}]})
  const padCollider=engine.addEntity();Transform.create(padCollider,{position:add(position,v(0,.18,0)),scale:v(3.65,.32,3.25)});MeshCollider.setBox(padCollider,ColliderLayer.CL_PHYSICS)
  const clicker=engine.addEntity();Transform.create(clicker,{position:add(position,v(0,.38,0)),scale:v(3.75,.7,3.2)});MeshCollider.setBox(clicker,ColliderLayer.CL_POINTER)
- pointerEventsSystem.onPointerDown({entity:clicker,opts:{button:InputAction.IA_POINTER,hoverText:'Join race',maxDistance:12,showFeedback:true,showHighlight:true}},()=>enterRace())
+ pointerEventsSystem.onPointerDown({entity:clicker,opts:{button:InputAction.IA_POINTER,hoverText:'Join race',maxDistance:12,showFeedback:true,showHighlight:true}},()=>enterRace(undefined,position))
 }
 function buildAvatarBounds(){
  const mat=Color4.fromHexString('#00000000')
