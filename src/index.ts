@@ -17,7 +17,7 @@ const trackItems:TrackItem[]=[]
 let mobileSeat=-2
 let gantryState=-1,sparkTier=-1
 let cameraHeading=0,cameraSpeed=0
-let cam:Entity,activeSeat=-1,accumulator=0,sparks:Entity[]=[],gantryLights:Entity[]=[],layoutKey=''
+let cam:Entity,activeSeat=-1,accumulator=0,sparks:Entity[]=[],gantryLights:Entity[]=[],layoutKey='',avatarLockUntil=0
 let syncPeerEntity:Entity,syncRoundEntity:Entity,musicAudio:Entity,cueAudio:Entity,lastSyncWrite=0,lastSyncRead=0,lastRoundWrite=0,lastRoundRead=0,seenSyncRound=''
 let workshopKart:Entity|undefined,workshopTire:Entity|undefined,workshopVisualKey='',workshopSpin=0,workshopMaterialRefresh=0
 const tireNames=['SPEED','BIGFOOT','CROSS']
@@ -117,6 +117,7 @@ function enterRace(seat?:number){
  if(room.seated()){mobileButtons.gas=false;mobileButtons.reverse=false;reverseArmed=false;driveInputReadyAt=Date.now()+700;paradeS=room.driver.s;activateDrivingCamera();room.message='Seat locked. Practice until the next race.'}
 }
 function activateDrivingCamera(){
+ avatarLockUntil=Date.now()+1200
  const d=room.driver,f=pose(d.s,d.lane),own=kart(room.id,room.garage.color,room.me.userId,room.garage.tireStyle,room.garage.metalColor)
  Transform.createOrReplace(own.entity,{position:f.p,rotation:orientation(f,d.heading),scale:v(.096,.096,.096)})
  if(own.motorAudio){const kmh=Math.abs(d.speed)*12,pitch=clamp(1+(kmh-20)/50,.65,2.15),volume=room.seat>=0?clamp(.28+d.throttle*.38+kmh/140,.18,1):0;AudioSource.createOrReplace(own.motorAudio,{audioClipUrl:'assets/Audio/motorloop.mp3',playing:true,loop:true,volume:Math.max(volume,.55),pitch,global:true,currentTime:0})}
@@ -263,7 +264,8 @@ function updateGantryLights(){
  }
 }
 function update(dt:number){
- if(!room)return;readSyncedPeers();readSyncedRound();room.update();if(room.leader()===room.id)writeSyncedRound();const nextLayout=room.round.id||`practice-${room.id}`;if(nextLayout!==layoutKey)randomizeTrackItems(nextLayout);updateGantryLights();updateCeremony(dt)
+ if(!room)return;
+ if(room.seated()){Transform.createOrReplace(engine.PlayerEntity,{position:v(16,.22,16),scale:v(1,1,1)});avatarLockUntil=Date.now()+250}else if(avatarLockUntil&&Date.now()>avatarLockUntil){avatarLockUntil=0;try{Transform.deleteFrom(engine.PlayerEntity)}catch{}}readSyncedPeers();readSyncedRound();room.update();if(room.leader()===room.id)writeSyncedRound();const nextLayout=room.round.id||`practice-${room.id}`;if(nextLayout!==layoutKey)randomizeTrackItems(nextLayout);updateGantryLights();updateCeremony(dt)
  if(workshopKart){workshopSpin+=dt*28;Transform.getMutable(workshopKart).rotation=Quaternion.fromEulerDegrees(0,35+workshopSpin,0);if(workshopMaterialRefresh>0){workshopMaterialRefresh--;applyKartMaterials(workshopKart,room.garage.color,room.garage.metalColor)}}
  if(activeSeat!==room.seat){activeSeat=room.seat;if(activeSeat>=0){mobileButtons.gas=false;mobileButtons.reverse=false;reverseArmed=false;driveInputReadyAt=Date.now()+700;activateDrivingCamera()}else{InputModifier.deleteFrom(engine.PlayerEntity);MainCamera.createOrReplace(engine.CameraEntity,{virtualCameraEntity:undefined});sparks.forEach(e=>engine.removeEntity(e));sparks=[]}}
  if(activeSeat!==mobileSeat){mobileSeat=activeSeat;if(activeSeat>=0){TouchScreenControls.hideAll();TouchScreenControls.showJoystick();TouchScreenControls.hideCrosshair()}else{mobileButtons.gas=false;mobileButtons.reverse=false;TouchScreenControls.deleteFrom(engine.RootEntity)}}
@@ -392,6 +394,7 @@ function runParade(dt:number){
 }
 function displayPoseForLocal(){return room.driver.finished?pose(paradeS,room.driver.lane):pose(room.driver.s,room.driver.lane)}
 function cinemaHeading(){return room.driver.heading+Math.sin(cinemaPhase*.58)*.42}
+
 
 
 
