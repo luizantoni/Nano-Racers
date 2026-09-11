@@ -1,4 +1,4 @@
-import {engine,Transform,GltfContainer,Animator,InputModifier,MainCamera,VirtualCamera,InputAction,inputSystem,pointerEventsSystem,MeshRenderer,MeshCollider,Material,AudioSource,Entity,Composite,getCompositeProvider,TouchScreenControls,ColliderLayer,Billboard,BillboardMode,TextShape,TextAlignMode,AssetLoad,VisibilityComponent,MaterialTransparencyMode,ParticleSystem,PBParticleSystem_BlendMode,PBParticleSystem_PlaybackState,PBParticleSystem_SimulationSpace,Schemas,GltfNodeModifiers} from '@dcl/sdk/ecs'
+import {engine,Transform,GltfContainer,Animator,MainCamera,VirtualCamera,InputAction,inputSystem,pointerEventsSystem,MeshRenderer,MeshCollider,Material,AudioSource,Entity,Composite,getCompositeProvider,TouchScreenControls,ColliderLayer,Billboard,BillboardMode,TextShape,TextAlignMode,AssetLoad,VisibilityComponent,MaterialTransparencyMode,ParticleSystem,PBParticleSystem_BlendMode,PBParticleSystem_PlaybackState,PBParticleSystem_SimulationSpace,Schemas,GltfNodeModifiers} from '@dcl/sdk/ecs'
 import {syncEntity,isStateSyncronized} from '@dcl/sdk/network'
 import {Color4,Quaternion} from '@dcl/sdk/math'
 import {MessageBus} from '@dcl/sdk/message-bus'
@@ -17,7 +17,8 @@ const trackItems:TrackItem[]=[]
 let mobileSeat=-2
 let gantryState=-1,sparkTier=-1
 let cameraHeading=0,cameraSpeed=0
-let cam:Entity,activeSeat=-1,accumulator=0,sparks:Entity[]=[],gantryLights:Entity[]=[],layoutKey='',avatarLockUntil=0
+let cam:Entity,activeSeat=-1,accumulator=0,sparks:Entity[]=[],gantryLights:Entity[]=[],layoutKey='',avatarBoundsActive=false
+let avatarBounds:Entity[]=[]
 let syncPeerEntity:Entity,syncRoundEntity:Entity,musicAudio:Entity,cueAudio:Entity,lastSyncWrite=0,lastSyncRead=0,lastRoundWrite=0,lastRoundRead=0,seenSyncRound=''
 let workshopKart:Entity|undefined,workshopTire:Entity|undefined,workshopVisualKey='',workshopSpin=0,workshopMaterialRefresh=0
 const tireNames=['SPEED','BIGFOOT','CROSS']
@@ -47,6 +48,7 @@ export async function main(){
  GltfContainer.createOrReplace(circuit,{src:'assets/Models/trackkart5.glb',visibleMeshesCollisionMask:ColliderLayer.CL_PHYSICS,invisibleMeshesCollisionMask:0})
  buildStartFinish()
  buildJoinStations()
+ buildAvatarBounds()
  buildTrackItems()
  preloadKarts()
  const bus=new MessageBus();const id=`${Date.now().toString(36)}-${Math.random().toString(36).slice(2,9)}`
@@ -117,7 +119,6 @@ function enterRace(seat?:number){
  if(room.seated()){mobileButtons.gas=false;mobileButtons.reverse=false;reverseArmed=false;driveInputReadyAt=Date.now()+700;paradeS=room.driver.s;activateDrivingCamera();room.message='Seat locked. Practice until the next race.'}
 }
 function activateDrivingCamera(){
- avatarLockUntil=Date.now()+1200
  const d=room.driver,f=pose(d.s,d.lane),own=kart(room.id,room.garage.color,room.me.userId,room.garage.tireStyle,room.garage.metalColor)
  Transform.createOrReplace(own.entity,{position:f.p,rotation:orientation(f,d.heading),scale:v(.096,.096,.096)})
  if(own.motorAudio){const kmh=Math.abs(d.speed)*12,pitch=clamp(1+(kmh-20)/50,.65,2.15),volume=room.seat>=0?clamp(.28+d.throttle*.38+kmh/140,.18,1):0;AudioSource.createOrReplace(own.motorAudio,{audioClipUrl:'assets/Audio/motorloop.mp3',playing:true,loop:true,volume:Math.max(volume,.55),pitch,global:true,currentTime:0})}
@@ -125,7 +126,6 @@ function activateDrivingCamera(){
  const forward=add(mul(f.t,Math.cos(cameraHeading)),mul(f.right,Math.sin(cameraHeading)))
  Transform.createOrReplace(cam,{position:add(add(f.p,mul(forward,-.258-.018*cameraSpeed)),mul(f.up,.123)),rotation:Quaternion.multiply(orientation(f,cameraHeading),Quaternion.fromEulerDegrees(13,0,0))})
  VirtualCamera.createOrReplace(cam,{defaultTransition:{transitionMode:VirtualCamera.Transition.Time(0)}})
- InputModifier.createOrReplace(engine.PlayerEntity,{mode:InputModifier.Mode.Standard({disableWalk:true,disableRun:true,disableJump:true})})
  MainCamera.createOrReplace(engine.CameraEntity,{virtualCameraEntity:cam})
  activeSeat=room.seat
 }
@@ -198,6 +198,21 @@ function buildJoinStation(position:{x:number;y:number;z:number}){
  const clicker=engine.addEntity();Transform.create(clicker,{position:add(position,v(0,.38,0)),scale:v(3.75,.7,3.2)});MeshCollider.setBox(clicker,ColliderLayer.CL_POINTER)
  pointerEventsSystem.onPointerDown({entity:clicker,opts:{button:InputAction.IA_POINTER,hoverText:'Join race',maxDistance:12,showFeedback:true,showHighlight:true}},()=>enterRace())
 }
+function buildAvatarBounds(){
+ const specs=[
+  {position:v(-.38,2,16),scale:v(.76,4,34)},
+  {position:v(32.38,2,16),scale:v(.76,4,34)},
+  {position:v(16,2,-.38),scale:v(34,4,.76)},
+  {position:v(16,2,32.38),scale:v(34,4,.76)}
+ ]
+ for(const spec of specs){const e=engine.addEntity();Transform.create(e,spec);avatarBounds.push(e)}
+ setAvatarBounds(false)
+}
+function setAvatarBounds(active:boolean){
+ if(avatarBoundsActive===active)return
+ avatarBoundsActive=active
+ for(const e of avatarBounds)active?MeshCollider.setBox(e,ColliderLayer.CL_PHYSICS):MeshCollider.deleteFrom(e)
+}
 function workshopButton(parent:Entity,label:string,position:{x:number;y:number;z:number},run:()=>void){
  const pad=engine.addEntity(),c=Color4.fromHexString('#8e929b')
  Transform.create(pad,{parent,position,scale:v(.92,.12,.92)})
@@ -265,9 +280,10 @@ function updateGantryLights(){
 }
 function update(dt:number){
  if(!room)return;
- if(room.seated()){Transform.createOrReplace(engine.PlayerEntity,{position:v(16,.22,16),scale:v(1,1,1)});avatarLockUntil=Date.now()+250}else if(avatarLockUntil&&Date.now()>avatarLockUntil){avatarLockUntil=0;try{Transform.deleteFrom(engine.PlayerEntity)}catch{}}readSyncedPeers();readSyncedRound();room.update();if(room.leader()===room.id)writeSyncedRound();const nextLayout=room.round.id||`practice-${room.id}`;if(nextLayout!==layoutKey)randomizeTrackItems(nextLayout);updateGantryLights();updateCeremony(dt)
+ setAvatarBounds(room.seated())
+ readSyncedPeers();readSyncedRound();room.update();if(room.leader()===room.id)writeSyncedRound();const nextLayout=room.round.id||`practice-${room.id}`;if(nextLayout!==layoutKey)randomizeTrackItems(nextLayout);updateGantryLights();updateCeremony(dt)
  if(workshopKart){workshopSpin+=dt*28;Transform.getMutable(workshopKart).rotation=Quaternion.fromEulerDegrees(0,35+workshopSpin,0);if(workshopMaterialRefresh>0){workshopMaterialRefresh--;applyKartMaterials(workshopKart,room.garage.color,room.garage.metalColor)}}
- if(activeSeat!==room.seat){activeSeat=room.seat;if(activeSeat>=0){mobileButtons.gas=false;mobileButtons.reverse=false;reverseArmed=false;driveInputReadyAt=Date.now()+700;activateDrivingCamera()}else{InputModifier.deleteFrom(engine.PlayerEntity);MainCamera.createOrReplace(engine.CameraEntity,{virtualCameraEntity:undefined});sparks.forEach(e=>engine.removeEntity(e));sparks=[]}}
+ if(activeSeat!==room.seat){activeSeat=room.seat;if(activeSeat>=0){mobileButtons.gas=false;mobileButtons.reverse=false;reverseArmed=false;driveInputReadyAt=Date.now()+700;activateDrivingCamera()}else{MainCamera.createOrReplace(engine.CameraEntity,{virtualCameraEntity:undefined});sparks.forEach(e=>engine.removeEntity(e));sparks=[]}}
  if(activeSeat!==mobileSeat){mobileSeat=activeSeat;if(activeSeat>=0){TouchScreenControls.hideAll();TouchScreenControls.showJoystick();TouchScreenControls.hideCrosshair()}else{mobileButtons.gas=false;mobileButtons.reverse=false;TouchScreenControls.deleteFrom(engine.RootEntity)}}
  const pressed=(key:InputAction)=>inputSystem.isPressed(key)
  const steer=((pressed(InputAction.IA_RIGHT)?1:0)-(pressed(InputAction.IA_LEFT)?1:0))*preferences.steering
