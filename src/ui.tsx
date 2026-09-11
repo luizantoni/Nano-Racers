@@ -2,7 +2,7 @@ import ReactEcs,{ReactEcsRenderer,UiEntity,Label} from '@dcl/sdk/react-ecs'
 import {engine,UiCanvasInformation} from '@dcl/sdk/ecs'
 import {isMobile} from '@dcl/sdk/platform'
 import {Color4} from '@dcl/sdk/math'
-import {room} from './index'
+import {room,leaveRace} from './index'
 import {clamp,mod,TRACK_LENGTH,TOP_SPEED_KMH,PALETTE} from './core'
 import {measureHud} from './hud-layout'
 import {art,Art} from './ui-art'
@@ -54,7 +54,7 @@ function ui(){
    {room.seated()?<UiEntity uiTransform={{flexDirection:'row',alignItems:'center',pointerFilter:'none'}}>
     {r.phase==='lobby'||r.phase==='results'?<UiEntity uiTransform={{height:44*u,width:180*u,margin:{right:8*u},alignItems:'center',justifyContent:'center'}} onMouseDown={()=>room.ready()}>{art('panel',room.me.ready?c.gold:c.mint)}<Label value={room.me.ready?'READY / CANCEL':r.phase==='results'?'READY AGAIN':'READY TO RACE'} fontSize={13*u} color={room.me.ready?c.gold:c.mint} uiTransform={{width:'92%',height:'90%',pointerFilter:'none'}}/></UiEntity>:null}
     {r.phase==='lobby'||r.phase==='results'?<UiEntity uiTransform={{height:44*u,width:142*u,margin:{right:8*u},alignItems:'center',justifyContent:'center'}} onMouseDown={()=>room.solo()}>{art('panel',c.gold)}<Label value={'SOLO RACE'} fontSize={13*u} color={c.gold} uiTransform={{width:'92%',height:'90%',pointerFilter:'none'}}/></UiEntity>:null}
-    {miniAction('LEAVE',()=>room.leave(),c.pink)}
+    {miniAction('LEAVE',leaveRace,c.pink)}
    </UiEntity>:null}
    {room.seated()&&r.phase==='lobby'&&ready>0?label(`${ready} READY / 2 TO START`,11,c.gold,18):null}
   </UiEntity>

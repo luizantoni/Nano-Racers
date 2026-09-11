@@ -130,7 +130,7 @@ function enterRace(seat?:number,padPosition?:{x:number;y:number;z:number}){
  if(room.seated()){mobileButtons.gas=false;mobileButtons.reverse=false;resetDesktopControls();reverseArmed=false;driveInputReadyAt=Date.now()+700;paradeS=room.driver.s;lockAvatarForRace(true);parkAvatarForRace(true);activateDrivingCamera();room.message='Seat locked. Practice until the next race.'}
 }
 function lockAvatarForRace(active:boolean){
- if(active)InputModifier.createOrReplace(engine.PlayerEntity,{mode:InputModifier.Mode.Standard({disableAll:true})})
+ if(active)InputModifier.createOrReplace(engine.PlayerEntity,{mode:InputModifier.Mode.Standard({disableWalk:true,disableRun:true,disableJump:true})})
  else InputModifier.deleteFrom(engine.PlayerEntity)
 }
 function parkAvatarForRace(force=false){
@@ -147,6 +147,22 @@ function activateDrivingCamera(){
  VirtualCamera.createOrReplace(cam,{defaultTransition:{transitionMode:VirtualCamera.Transition.Time(0)}})
  MainCamera.createOrReplace(engine.CameraEntity,{virtualCameraEntity:cam})
  activeSeat=room.seat
+}
+function releaseLocalRaceControl(){
+ lockAvatarForRace(false)
+ setAvatarBounds(false)
+ resetDesktopControls()
+ mobileButtons.gas=false;mobileButtons.reverse=false;reverseArmed=true;driveInputReadyAt=0
+ MainCamera.createOrReplace(engine.CameraEntity,{virtualCameraEntity:undefined})
+ if(isMobile())TouchScreenControls.deleteFrom(engine.RootEntity)
+ sparks.forEach(e=>engine.removeEntity(e));sparks=[]
+ activeSeat=-1;mobileSeat=-2
+}
+export function leaveRace(){
+ if(!room)return
+ room.leave()
+ releaseLocalRaceControl()
+ writeSyncedPeer(true)
 }
 function kart(id:string,color:number,userId=id,tireStyle=0,metalColor=3){let k=karts.get(id);if(!k){
  const entity=engine.addEntity(),model=engine.addEntity(),tire=engine.addEntity(),motorAudio=id===room.id?engine.addEntity():undefined,portrait=id!==room.id?engine.addEntity():undefined
@@ -309,7 +325,7 @@ function update(dt:number){
  setAvatarBounds(room.seated())
  readSyncedPeers();readSyncedRound();room.update();if(room.leader()===room.id)writeSyncedRound();const nextLayout=room.round.id||`practice-${room.id}`;if(nextLayout!==layoutKey)randomizeTrackItems(nextLayout);updateGantryLights();updateCeremony(dt)
  if(workshopKart){workshopSpin+=dt*28;Transform.getMutable(workshopKart).rotation=Quaternion.fromEulerDegrees(0,35+workshopSpin,0);if(workshopMaterialRefresh>0){workshopMaterialRefresh--;applyKartMaterials(workshopKart,room.garage.color,room.garage.metalColor)}}
- if(activeSeat!==room.seat){activeSeat=room.seat;if(activeSeat>=0){mobileButtons.gas=false;mobileButtons.reverse=false;resetDesktopControls();reverseArmed=false;driveInputReadyAt=Date.now()+700;lockAvatarForRace(true);parkAvatarForRace(true);activateDrivingCamera()}else{lockAvatarForRace(false);resetDesktopControls();MainCamera.createOrReplace(engine.CameraEntity,{virtualCameraEntity:undefined});sparks.forEach(e=>engine.removeEntity(e));sparks=[]}}
+ if(activeSeat!==room.seat){activeSeat=room.seat;if(activeSeat>=0){mobileButtons.gas=false;mobileButtons.reverse=false;resetDesktopControls();reverseArmed=false;driveInputReadyAt=Date.now()+700;lockAvatarForRace(true);parkAvatarForRace(true);activateDrivingCamera()}else{releaseLocalRaceControl()}}
  if(room.seated()){lockAvatarForRace(true);parkAvatarForRace()}
  if(activeSeat!==mobileSeat){mobileSeat=activeSeat;if(isMobile()&&activeSeat>=0){TouchScreenControls.hideAll();TouchScreenControls.showJoystick();TouchScreenControls.hideCrosshair()}else{mobileButtons.gas=false;mobileButtons.reverse=false;if(isMobile())TouchScreenControls.deleteFrom(engine.RootEntity)}}
  latchDesktopControls()
